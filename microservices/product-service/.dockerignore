@@ -1,0 +1,6 @@
+**
+!build/
+!build/libs/
+!build/libs/product-service-1.0.0-SNAPSHOT.jar
+!Dockerfile
+!.dockerignore

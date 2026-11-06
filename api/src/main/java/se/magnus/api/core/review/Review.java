@@ -1,5 +1,8 @@
 package se.magnus.api.core.review;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 public class Review {
   private final int productId;
   private final int reviewId;
@@ -17,13 +20,14 @@ public class Review {
     serviceAddress = null;
   }
 
+  @JsonCreator
   public Review(
-    int productId,
-    int reviewId,
-    String author,
-    String subject,
-    String content,
-    String serviceAddress) {
+    @JsonProperty("productId") int productId,
+    @JsonProperty("reviewId") int reviewId,
+    @JsonProperty("author") String author,
+    @JsonProperty("subject") String subject,
+    @JsonProperty("content") String content,
+    @JsonProperty("serviceAddress") String serviceAddress) {
 
     this.productId = productId;
     this.reviewId = reviewId;

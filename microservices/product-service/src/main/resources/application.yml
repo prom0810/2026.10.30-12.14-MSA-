@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: product-service
+  web:
+    error:
+      include-message: always
+
+server:
+  port: 7002
+
+logging:
+  level:
+    root: INFO
+    se.magnus.microservices: DEBUG
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+server:
+  port: 8080

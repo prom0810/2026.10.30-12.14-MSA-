@@ -1,0 +1,17 @@
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::                (v4.0.9)
+
+2026-11-02T13:49:04.276+09:00  INFO 8130 --- [recommendation-service] [           main] m.m.c.r.RecommendationServiceApplication : Starting RecommendationServiceApplication v1.0.0-SNAPSHOT using Java 21 with PID 8130 (/home/user/projects/some-temp-folder/microservices/recommendation-service/build/libs/recommendation-service-1.0.0-SNAPSHOT.jar started by user in /home/user/projects/some-temp-folder)
+2026-11-02T13:49:04.280+09:00  INFO 8130 --- [recommendation-service] [           main] m.m.c.r.RecommendationServiceApplication : No active profile set, falling back to 1 default profile: "default"
+2026-11-02T13:49:05.551+09:00  INFO 8130 --- [recommendation-service] [           main] o.s.b.a.e.web.EndpointLinksResolver      : Exposing 1 endpoint beneath base path '/actuator'
+2026-11-02T13:49:05.941+09:00  INFO 8130 --- [recommendation-service] [           main] o.s.boot.reactor.netty.NettyWebServer    : Netty started on port 7003 (http)
+2026-11-02T13:49:05.947+09:00  INFO 8130 --- [recommendation-service] [           main] m.m.c.r.RecommendationServiceApplication : Started RecommendationServiceApplication in 2.093 seconds (process running for 2.571)
+2026-11-02T13:59:50.679+09:00  INFO 8130 --- [recommendation-service] [ionShutdownHook] o.s.boot.reactor.netty.GracefulShutdown  : Commencing graceful shutdown. Waiting for active requests to complete
+2026-11-02T13:59:50.682+09:00  INFO 8130 --- [recommendation-service] [ netty-shutdown] o.s.boot.reactor.netty.GracefulShutdown  : Graceful shutdown complete
