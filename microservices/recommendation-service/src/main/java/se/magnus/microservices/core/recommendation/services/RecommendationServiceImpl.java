@@ -1,45 +1,47 @@
 package se.magnus.microservices.core.recommendation.services;
 
-import java.util.ArrayList;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.web.bind.annotation.RestController;
 import se.magnus.api.core.recommendation.Recommendation;
 import se.magnus.api.core.recommendation.RecommendationService;
 import se.magnus.api.exceptions.InvalidInputException;
+import se.magnus.microservices.core.recommendation.persistence.RecommendationRepository;
 import se.magnus.util.http.ServiceUtil;
 
 @RestController
 public class RecommendationServiceImpl implements RecommendationService {
+    private final RecommendationRepository repository;
+    private final RecommendationMapper mapper;
+    private final ServiceUtil serviceUtil;
 
-  private static final Logger LOG = LoggerFactory.getLogger(RecommendationServiceImpl.class);
-
-  private final ServiceUtil serviceUtil;
-
-  public RecommendationServiceImpl(ServiceUtil serviceUtil) {
-    this.serviceUtil = serviceUtil;
-  }
-
-  @Override
-  public List<Recommendation> getRecommendations(int productId) {
-
-    if (productId < 1) {
-      throw new InvalidInputException("Invalid productId: " + productId);
+    public RecommendationServiceImpl(RecommendationRepository repository, RecommendationMapper mapper,
+                                     ServiceUtil serviceUtil) {
+        this.repository = repository;
+        this.mapper = mapper;
+        this.serviceUtil = serviceUtil;
     }
 
-    if (productId == 113) {
-      LOG.debug("No recommendations found for productId: {}", productId);
-      return new ArrayList<>();
+    @Override
+    public Recommendation createRecommendation(Recommendation body) {
+        try {
+            return mapper.entityToApi(repository.save(mapper.apiToEntity(body)));
+        } catch (DuplicateKeyException ex) {
+            throw new InvalidInputException("Duplicate key, Product Id: " + body.getProductId()
+                    + ", Recommendation Id: " + body.getRecommendationId());
+        }
     }
 
-    List<Recommendation> list = new ArrayList<>();
-    list.add(new Recommendation(productId, 1, "Author 1", 1, "Content 1", serviceUtil.getServiceAddress()));
-    list.add(new Recommendation(productId, 2, "Author 2", 2, "Content 2", serviceUtil.getServiceAddress()));
-    list.add(new Recommendation(productId, 3, "Author 3", 3, "Content 3", serviceUtil.getServiceAddress()));
+    @Override
+    public List<Recommendation> getRecommendations(int productId) {
+        if (productId < 1) throw new InvalidInputException("Invalid productId: " + productId);
+        return repository.findByProductId(productId).stream().map(mapper::entityToApi)
+                .map(r -> new Recommendation(r.getProductId(), r.getRecommendationId(), r.getAuthor(),
+                        r.getRate(), r.getContent(), serviceUtil.getServiceAddress())).toList();
+    }
 
-    LOG.debug("/recommendation response size: {}", list.size());
-
-    return list;
-  }
+    @Override
+    public void deleteRecommendations(int productId) {
+        repository.deleteAll(repository.findByProductId(productId));
+    }
 }

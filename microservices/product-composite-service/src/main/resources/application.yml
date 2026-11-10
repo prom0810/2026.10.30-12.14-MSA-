@@ -44,6 +44,26 @@ api:
       description: Unprocessable entity, input parameters caused the processing to fail. See response message for more information
 
   product-composite:
+    create-composite-product:
+      description: Creates a composite product
+      notes: |
+        # Normal response
+        The composite product information posted to the API will be split up and stored
+        as separate product-info, recommendation and review entities.
+
+        # Expected error responses
+        If a product with the same productId already exists, a **422 - Unprocessable Entity**
+        error with a "duplicate key" error message will be returned.
+
+    delete-composite-product:
+      description: Deletes a product composite
+      notes: |
+        # Normal response
+        Entities for product information, recommendations and reviews related to the
+        specified productId will be deleted.
+        The delete method is idempotent: it can be called several times with the same response.
+        Deleting a non-existing product returns **200 Ok**.
+
     get-composite-product:
       description: Returns a composite view of the specified product id
       notes: |

@@ -1,4 +1,11 @@
 spring:
+  mongodb:
+    host: localhost
+    port: 27017
+    database: recommendation-db
+  data:
+    mongodb:
+      auto-index-creation: true
   application:
     name: recommendation-service
   web:
@@ -8,11 +15,19 @@ spring:
 server:
   port: 7003
 
+logging:
+  level:
+    org.springframework.data.mongodb.core.MongoTemplate: DEBUG
+
 ---
 spring:
   config:
     activate:
       on-profile: docker
+  mongodb:
+    host: mongodb
 
 server:
   port: 8080
+
+

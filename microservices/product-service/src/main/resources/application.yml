@@ -1,4 +1,11 @@
 spring:
+  mongodb:
+    host: localhost
+    port: 27017
+    database: product-db
+  data:
+    mongodb:
+      auto-index-creation: true
   application:
     name: product-service
   web:
@@ -10,6 +17,7 @@ server:
 
 logging:
   level:
+    org.springframework.data.mongodb.core.MongoTemplate: DEBUG
     root: INFO
     se.magnus.microservices: DEBUG
 
@@ -18,6 +26,10 @@ spring:
   config:
     activate:
       on-profile: docker
+  mongodb:
+    host: mongodb
 
 server:
   port: 8080
+
+

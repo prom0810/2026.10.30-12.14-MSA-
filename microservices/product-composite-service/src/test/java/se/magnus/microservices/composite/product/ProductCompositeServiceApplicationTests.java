@@ -89,7 +89,9 @@ class ProductCompositeServiceApplicationTests {
 				.expectBody()
 				.jsonPath("$.productId").isEqualTo(PRODUCT_ID_OK)
 				.jsonPath("$.recommendations.length()").isEqualTo(1)
-				.jsonPath("$.reviews.length()").isEqualTo(1);
+				.jsonPath("$.reviews.length()").isEqualTo(1)
+                .jsonPath("$.recommendations[0].content").isEqualTo("content")
+                .jsonPath("$.reviews[0].content").isEqualTo("content");
 	}
 
 	@Test
@@ -107,4 +109,51 @@ class ProductCompositeServiceApplicationTests {
 				.isEqualTo("NOT FOUND: " + PRODUCT_ID_NOT_FOUND);
 	}
 
+    @Test
+    void createCompositeProduct() {
+        client.post().uri("/product-composite").contentType(APPLICATION_JSON)
+                .bodyValue("""
+                    {"productId":10,"name":"New product","weight":5,
+                     "recommendations":[{"recommendationId":2,"author":"A","rate":4,"content":"Recommendation text"}],
+                     "reviews":[{"reviewId":3,"author":"B","subject":"Good","content":"Review text"}]}
+                    """)
+                .exchange().expectStatus().isOk();
+        org.mockito.Mockito.verify(compositeIntegration).createProduct(org.mockito.ArgumentMatchers.argThat(
+                p -> p.getProductId() == 10 && p.getName().equals("New product") && p.getWeight() == 5));
+        org.mockito.Mockito.verify(compositeIntegration).createRecommendation(org.mockito.ArgumentMatchers.argThat(
+                r -> r.getProductId() == 10 && r.getRecommendationId() == 2 && r.getRate() == 4 && "Recommendation text".equals(r.getContent())));
+        org.mockito.Mockito.verify(compositeIntegration).createReview(org.mockito.ArgumentMatchers.argThat(
+                r -> r.getProductId() == 10 && r.getReviewId() == 3 && r.getSubject().equals("Good") && "Review text".equals(r.getContent())));
+    }
+
+    @Test
+    void deleteCompositeProductTwice() {
+        for (int i = 0; i < 2; i++) {
+            client.delete().uri("/product-composite/10").exchange().expectStatus().isOk();
+        }
+        org.mockito.Mockito.verify(compositeIntegration, org.mockito.Mockito.times(2)).deleteProduct(10);
+        org.mockito.Mockito.verify(compositeIntegration, org.mockito.Mockito.times(2)).deleteRecommendations(10);
+        org.mockito.Mockito.verify(compositeIntegration, org.mockito.Mockito.times(2)).deleteReviews(10);
+    }
+    @Test
+    void createCompositeWithoutChildren() {
+        client.post().uri("/product-composite").contentType(APPLICATION_JSON)
+                .bodyValue(new se.magnus.api.composite.product.ProductAggregate(10, "name", 1, null, null, null))
+                .exchange().expectStatus().isOk();
+        org.mockito.Mockito.verify(compositeIntegration).createProduct(org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(compositeIntegration, org.mockito.Mockito.never())
+                .createRecommendation(org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(compositeIntegration, org.mockito.Mockito.never())
+                .createReview(org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void duplicateProductErrorIsReturnedToClient() {
+        when(compositeIntegration.createProduct(org.mockito.ArgumentMatchers.any()))
+                .thenThrow(new InvalidInputException("Duplicate key, Product Id: 10"));
+        client.post().uri("/product-composite").contentType(APPLICATION_JSON)
+                .bodyValue(new se.magnus.api.composite.product.ProductAggregate(10, "name", 1, null, null, null))
+                .exchange().expectStatus().isEqualTo(422).expectBody()
+                .jsonPath("$.message").isEqualTo("Duplicate key, Product Id: 10");
+    }
 }
