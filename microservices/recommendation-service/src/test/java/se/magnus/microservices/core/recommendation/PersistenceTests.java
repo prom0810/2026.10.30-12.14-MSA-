@@ -1,15 +1,11 @@
 package se.magnus.microservices.core.recommendation;
 
-
-
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.hasSize;
 import static org.junit.jupiter.api.Assertions.*;
 
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.mongodb.MongoDBContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.mongodb.test.autoconfigure.DataMongoTest;
@@ -18,13 +14,8 @@ import org.springframework.dao.OptimisticLockingFailureException;
 import se.magnus.microservices.core.recommendation.persistence.RecommendationEntity;
 import se.magnus.microservices.core.recommendation.persistence.RecommendationRepository;
 
-@DataMongoTest(properties = "spring.data.mongodb.auto-index-creation=true")
-@Testcontainers
-class PersistenceTests {
-
-  @Container
-  @ServiceConnection
-  static MongoDBContainer mongo = new MongoDBContainer("mongo:8.0.5");
+@DataMongoTest
+class PersistenceTests extends MongoDbTestBase {
 
   @Autowired
   private RecommendationRepository repository;
@@ -74,7 +65,7 @@ class PersistenceTests {
   void getByProductId() {
     List<RecommendationEntity> entityList = repository.findByProductId(savedEntity.getProductId()).collectList().block();
 
-    assertEquals(1, entityList.size());
+    assertThat(entityList, hasSize(1));
     assertEqualsRecommendation(savedEntity, entityList.get(0));
   }
 

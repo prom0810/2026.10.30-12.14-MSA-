@@ -57,17 +57,16 @@ function assertCurl() {
 
 function waitForService() {
   local attempt status
-  echo "Waiting for all core services through composite DELETE..."
+  echo "Waiting for composite and core service health..."
   for ((attempt=1; attempt<=WAIT_ATTEMPTS; attempt++)); do
-    if status=$(curl --silent --show-error --connect-timeout 5 --max-time 30 \
-        -X DELETE "$BASE_URL/product-composite/13" --output "$RESPONSE_FILE" \
-        --write-out '%{http_code}') && [[ "$status" == 200 ]]; then
-      echo "Services ready; product 13 removed for the not-found test."
+    if status=$(curl --silent --connect-timeout 5 --max-time 30 \
+        "$BASE_URL/actuator/health" --output "$RESPONSE_FILE" --write-out '%{http_code}') && [[ "$status" == 200 ]]; then
+      assertCurl 202 -X DELETE "$BASE_URL/product-composite/13"
       return 0
     fi
     if ((attempt < WAIT_ATTEMPTS)); then sleep "$WAIT_INTERVAL"; fi
   done
-  echo "Services did not become ready after $WAIT_ATTEMPTS attempts." >&2
+  echo "Services did not become ready." >&2
   cat "$RESPONSE_FILE" >&2
   return 1
 }
@@ -75,8 +74,8 @@ function waitForService() {
 function recreateComposite() {
   local productId=$1
   local composite=$2
-  assertCurl 200 -X DELETE "$BASE_URL/product-composite/$productId"
-  assertCurl 200 -X POST "$BASE_URL/product-composite" \
+  assertCurl 202 -X DELETE "$BASE_URL/product-composite/$productId"
+  assertCurl 202 -X POST "$BASE_URL/product-composite" \
     -H 'Content-Type: application/json' --data "$composite"
 }
 
@@ -143,6 +142,16 @@ fi
 echo "Test data IDs 1, 13, 113 and 213 will be deleted/recreated at $BASE_URL."
 waitForService
 setupTestdata
+# A 202 means accepted; wait for all asynchronous writes, including partial aggregates.
+ready=false
+for ((attempt=1; attempt<=WAIT_ATTEMPTS; attempt++)); do
+  if (verifyProduct 1 3 3 && verifyProduct 113 0 3 && verifyProduct 213 3 0 && assertCurl 404 "$BASE_URL/product-composite/13") >/dev/null 2>&1; then
+    ready=true
+    break
+  fi
+  sleep "$WAIT_INTERVAL"
+done
+$ready || { echo "Timed out waiting for event processing" >&2; exit 1; }
 verifyProduct 1 3 3
 verifyProduct 113 0 3
 verifyProduct 213 3 0
@@ -150,5 +159,9 @@ assertCurl 404 "$BASE_URL/product-composite/13"
 jq -e '.path == "/product-composite/13"' "$RESPONSE_FILE" >/dev/null
 assertCurl 422 "$BASE_URL/product-composite/-1"
 jq -e '.message == "Invalid productId: -1"' "$RESPONSE_FILE" >/dev/null
+
+assertCurl 400 "$BASE_URL/product-composite/invalidProductId"
+assertCurl 200 "$BASE_URL/openapi/v3/api-docs"
+assertCurl 200 -L "$BASE_URL/openapi/swagger-ui.html"
 
 echo "All API assertions passed: $(date)"

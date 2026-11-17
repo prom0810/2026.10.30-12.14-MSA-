@@ -53,4 +53,16 @@ class CoreResponseDeserializationTests {
         assertEquals("Content 2", review.getContent());
         assertEquals("review:8080", review.getServiceAddress());
     }
+
+    @Test
+    void readsTypedEventForConsumer() {
+        var original = new se.magnus.api.event.Event<>(se.magnus.api.event.Event.Type.CREATE,
+            123, new Product(123, "name", 7, null));
+        var event = mapper.readValue(mapper.writeValueAsString(original),
+            new tools.jackson.core.type.TypeReference<se.magnus.api.event.Event<Integer, Product>>() {});
+        assertEquals(original.getEventType(), event.getEventType());
+        assertEquals(123, event.getKey());
+        assertEquals("name", event.getData().getName());
+        assertEquals(original.getEventCreatedAt().toInstant(), event.getEventCreatedAt().toInstant());
+    }
 }

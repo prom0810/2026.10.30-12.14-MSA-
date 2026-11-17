@@ -17,4 +17,6 @@ public interface RecommendationMapper {
     @Mapping(target = "version", ignore = true)
     @Mapping(target = "rating", source = "api.rate")
     RecommendationEntity apiToEntity(Recommendation api);
+    java.util.List<Recommendation> entityListToApiList(java.util.List<RecommendationEntity> entities);
+    java.util.List<RecommendationEntity> apiListToEntityList(java.util.List<Recommendation> apis);
 }

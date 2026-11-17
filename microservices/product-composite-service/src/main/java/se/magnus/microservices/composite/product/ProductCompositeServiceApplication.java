@@ -5,76 +5,85 @@ import io.swagger.v3.oas.models.OpenAPI;
 import io.swagger.v3.oas.models.info.Contact;
 import io.swagger.v3.oas.models.info.Info;
 import io.swagger.v3.oas.models.info.License;
-
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.scheduler.Scheduler;
+import reactor.core.scheduler.Schedulers;
 
 @SpringBootApplication
 @ComponentScan("se.magnus")
 public class ProductCompositeServiceApplication {
-	@Value("${api.common.version}")
-	private String apiVersion;
 
-	@Value("${api.common.title}")
-	private String apiTitle;
+  private static final Logger LOG = LoggerFactory.getLogger(ProductCompositeServiceApplication.class);
 
-	@Value("${api.common.description}")
-	private String apiDescription;
+  @Value("${api.common.version}")         String apiVersion;
+  @Value("${api.common.title}")           String apiTitle;
+  @Value("${api.common.description}")     String apiDescription;
+  @Value("${api.common.termsOfService}")  String apiTermsOfService;
+  @Value("${api.common.license}")         String apiLicense;
+  @Value("${api.common.licenseUrl}")      String apiLicenseUrl;
+  @Value("${api.common.externalDocDesc}") String apiExternalDocDesc;
+  @Value("${api.common.externalDocUrl}")  String apiExternalDocUrl;
+  @Value("${api.common.contact.name}")    String apiContactName;
+  @Value("${api.common.contact.url}")     String apiContactUrl;
+  @Value("${api.common.contact.email}")   String apiContactEmail;
 
-	@Value("${api.common.termsOfService}")
-	private String apiTermsOfService;
+  /**
+  * Will exposed on $HOST:$PORT/swagger-ui.html
+  *
+  * @return the common OpenAPI documentation
+  */
+  @Bean
+  public OpenAPI getOpenApiDocumentation() {
+    return new OpenAPI()
+      .info(new Info().title(apiTitle)
+        .description(apiDescription)
+        .version(apiVersion)
+        .contact(new Contact()
+          .name(apiContactName)
+          .url(apiContactUrl)
+          .email(apiContactEmail))
+        .termsOfService(apiTermsOfService)
+        .license(new License()
+          .name(apiLicense)
+          .url(apiLicenseUrl)))
+      .externalDocs(new ExternalDocumentation()
+        .description(apiExternalDocDesc)
+        .url(apiExternalDocUrl));
+  }
 
-	@Value("${api.common.license}")
-	private String apiLicense;
+  private final Integer threadPoolSize;
+  private final Integer taskQueueSize;
 
-	@Value("${api.common.licenseUrl}")
-	private String apiLicenseUrl;
+  public ProductCompositeServiceApplication(
+    @Value("${app.threadPoolSize:10}") Integer threadPoolSize,
+    @Value("${app.taskQueueSize:100}") Integer taskQueueSize
+  ) {
+    this.threadPoolSize = threadPoolSize;
+    this.taskQueueSize = taskQueueSize;
+  }
 
-	@Value("${api.common.externalDocDesc}")
-	private String apiExternalDocDesc;
+  @Bean
+  public Scheduler publishEventScheduler() {
+    LOG.info("Creates a messagingScheduler with connectionPoolSize = {}", threadPoolSize);
+    return Schedulers.newBoundedElastic(threadPoolSize, taskQueueSize, "publish-pool");
+  }
 
-	@Value("${api.common.externalDocUrl}")
-	private String apiExternalDocUrl;
+  @Bean
+  @LoadBalanced
+  public WebClient.Builder loadBalancedWebClientBuilder() {
+    return WebClient.builder();
+  }
 
-	@Value("${api.common.contact.name}")
-	private String apiContactName;
+  public static void main(String[] args) {
+    SpringApplication.run(ProductCompositeServiceApplication.class, args);
+  }
 
-	@Value("${api.common.contact.url}")
-	private String apiContactUrl;
-
-	@Value("${api.common.contact.email}")
-	private String apiContactEmail;
-
-	public static void main(String[] args) {
-		SpringApplication.run(ProductCompositeServiceApplication.class, args);
-	}
-
-	@Bean
-	RestTemplate restTemplate() {
-		return new RestTemplate();
-	}
-
-	@Bean
-	public OpenAPI getOpenApiDocumentation() {
-		return new OpenAPI()
-				.info(new Info().title(apiTitle)
-						.description(apiDescription)
-						.version(apiVersion)
-						.contact(new Contact()
-								.name(apiContactName)
-								.url(apiContactUrl)
-								.email(apiContactEmail))
-						.termsOfService(apiTermsOfService)
-						.license(new License()
-								.name(apiLicense)
-								.url(apiLicenseUrl)))
-				.externalDocs(new ExternalDocumentation()
-						.description(apiExternalDocDesc)
-						.url(apiExternalDocUrl));
-	}
 }

@@ -1,27 +1,15 @@
 spring:
   application:
-    name: product-composite-service
-  web:
-    error:
-      include-message: always
-
+    name: product-composite
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://localhost:8761/eureka/
 server:
   port: 7001
-
-app:
-  product-service:
-    host: localhost
-    port: 7002
-  recommendation-service:
-    host: localhost
-    port: 7003
-  review-service:
-    host: localhost
-    port: 7004
-
 api:
   common:
-    version: "1.0.0"
+    version: 1.0.0
     title: Sample API
     description: Description of the API...
     termsOfService: MY TERMS OF SERVICE
@@ -37,86 +25,130 @@ api:
     ok:
       description: OK
     badRequest:
-      description: Bad Request, invalid format of the request. See response message for more information
+      description: Bad Request, invalid format of the request. See response message
+        for more information
     notFound:
       description: Not found, the specified id does not exist
     unprocessableEntity:
-      description: Unprocessable entity, input parameters caused the processing to fail. See response message for more information
-
+      description: Unprocessable entity, input parameters caused the processing to
+        fail. See response message for more information
   product-composite:
     create-composite-product:
       description: Creates a composite product
-      notes: |
-        # Normal response
-        The composite product information posted to the API will be split up and stored
-        as separate product-info, recommendation and review entities.
-
-        # Expected error responses
-        If a product with the same productId already exists, a **422 - Unprocessable Entity**
-        error with a "duplicate key" error message will be returned.
-
+      notes: Returns 202 Accepted after publishing CREATE events. Persistence is asynchronous;
+        poll GET for completion. Duplicate-key errors are handled by consumer retries
+        and the dead-letter queue, not returned synchronously.
     delete-composite-product:
       description: Deletes a product composite
-      notes: |
-        # Normal response
-        Entities for product information, recommendations and reviews related to the
-        specified productId will be deleted.
-        The delete method is idempotent: it can be called several times with the same response.
-        Deleting a non-existing product returns **200 Ok**.
-
+      notes: Returns 202 Accepted after publishing DELETE events. Deletion is asynchronous
+        and idempotent, including for non-existing products.
     get-composite-product:
       description: Returns a composite view of the specified product id
-      notes: |
-        # Normal response
+      notes: '# Normal response
+
         If the requested product id is found the method will return information regarding:
+
         1. Base product information
+
         2. Reviews
+
         3. Recommendations
-        4. Service Addresses (technical information regarding the addresses of the microservices that created the response)
+
+        4. Service Addresses (technical information regarding the addresses of the
+        microservices that created the response)
+
 
         # Expected partial and error responses
-        In the following cases, only a partial response will be created or an error will be returned.
+
+        In the following cases, only a partial response will be created or an error
+        will be returned.
+
 
         ## Product id 113
+
         200 - OK, but no recommendations will be returned
 
+
         ## Product id 213
+
         200 - OK, but no reviews will be returned
 
+
         ## Non-numerical product id
+
         400 - A **Bad Request** error will be returned
 
+
         ## Product id 13
+
         404 - A **Not Found** error will be returned
 
+
         ## Negative product ids
+
         422 - An **Unprocessable Entity** error will be returned
 
+        '
 springdoc:
   swagger-ui:
     path: /openapi/swagger-ui.html
   api-docs:
     path: /openapi/v3/api-docs
   packages-to-scan: se.magnus.microservices.composite.product
-  paths-to-match: "/**"
-
+  paths-to-match: /**
+spring.cloud.stream:
+  defaultBinder: rabbit
+  default.contentType: application/json
+  bindings:
+    products-out-0:
+      destination: products
+      producer:
+        required-groups: auditGroup
+    recommendations-out-0:
+      destination: recommendations
+      producer:
+        required-groups: auditGroup
+    reviews-out-0:
+      destination: reviews
+      producer:
+        required-groups: auditGroup
+spring.cloud.stream.kafka.binder:
+  brokers: 127.0.0.1
+  defaultBrokerPort: 9092
+spring.rabbitmq:
+  host: 127.0.0.1
+  port: 5672
+  username: guest
+  password: guest
+management.endpoint.health.show-details: ALWAYS
+management.endpoints.web.exposure.include: '*'
 ---
 spring:
   config:
     activate:
       on-profile: docker
-
 server:
   port: 8080
-
-app:
-  product-service:
-    host: product
-    port: 8080
-  recommendation-service:
-    host: recommendation
-    port: 8080
-  review-service:
-    host: review
-    port: 8080
-
+spring.rabbitmq.host: rabbitmq
+spring.cloud.stream.kafka.binder.brokers: kafka
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: http://eureka:8761/eureka/
+---
+spring.config.activate.on-profile: streaming_partitioned
+spring.cloud.stream.bindings.products-out-0.producer:
+  partition-key-expression: headers['partitionKey']
+  partition-count: 2
+spring.cloud.stream.bindings.recommendations-out-0.producer:
+  partition-key-expression: headers['partitionKey']
+  partition-count: 2
+spring.cloud.stream.bindings.reviews-out-0.producer:
+  partition-key-expression: headers['partitionKey']
+  partition-count: 2
+---
+spring.config.activate.on-profile: kafka
+management.health.rabbit.enabled: false
+spring.cloud.stream.defaultBinder: kafka
+spring.kafka.bootstrap-servers: kafka:9092
+spring.cloud.stream.kafka.binder.replication-factor: 1

@@ -2,72 +2,66 @@ package se.magnus.microservices.composite.product;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.cloud.stream.function.StreamBridge;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
-import org.springframework.test.web.client.MockRestServiceServer;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestTemplate;
+import org.springframework.web.reactive.function.client.ClientResponse;
+import org.springframework.web.reactive.function.client.WebClient;
+import org.springframework.web.reactive.function.client.WebClientResponseException;
+import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 import se.magnus.api.core.product.Product;
 import se.magnus.api.exceptions.InvalidInputException;
 import se.magnus.api.exceptions.NotFoundException;
 import se.magnus.microservices.composite.product.services.ProductCompositeIntegration;
 import tools.jackson.databind.json.JsonMapper;
 import static org.junit.jupiter.api.Assertions.*;
-import static org.springframework.http.HttpMethod.*;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.*;
-import static org.springframework.test.web.client.response.MockRestResponseCreators.*;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 class ProductCompositeIntegrationTests {
-    private MockRestServiceServer server;
+    private StreamBridge bridge;
     private ProductCompositeIntegration integration;
+    private ClientResponse response;
+    private String requestedUrl;
 
     @BeforeEach
     void setup() {
-        RestTemplate restTemplate = new RestTemplate();
-        server = MockRestServiceServer.bindTo(restTemplate).build();
-        integration = new ProductCompositeIntegration(restTemplate, JsonMapper.builder().build(),
-                "product", 8080, "recommendation", 8080, "review", 8080);
+        bridge = mock(StreamBridge.class);
+        WebClient.Builder client = WebClient.builder().exchangeFunction(request -> {
+            requestedUrl = request.url().toString();
+            return Mono.just(response);
+        });
+        integration = new ProductCompositeIntegration(Schedulers.immediate(), client,
+            JsonMapper.builder().build(), bridge);
     }
 
     @Test
-    void postUsesBaseUrlAndPreservesErrorMessage() {
-        server.expect(requestTo("http://product:8080/product")).andExpect(method(POST))
-                .andExpect(content().json("{\"productId\":7,\"name\":\"p\",\"weight\":2}"))
-                .andRespond(withStatus(HttpStatus.UNPROCESSABLE_ENTITY).contentType(MediaType.APPLICATION_JSON)
-                        .body("{\"message\":\"Duplicate key, Product Id: 7\"}"));
-        InvalidInputException ex = assertThrows(InvalidInputException.class,
-                () -> integration.createProduct(new Product(7, "p", 2, null)));
-        assertEquals("Duplicate key, Product Id: 7", ex.getMessage());
-        server.verify();
+    void getPreservesErrorMessage() {
+        response = ClientResponse.create(HttpStatus.UNPROCESSABLE_CONTENT)
+            .header("Content-Type", "application/json").body("{\"message\":\"Invalid productId: -1\"}").build();
+        assertEquals("Invalid productId: -1", assertThrows(InvalidInputException.class,
+            () -> integration.getProduct(-1).block()).getMessage());
+        assertEquals("http://product/product/-1", requestedUrl);
     }
 
     @Test
-    void deletesUseCorrectPathsAndQueryParameters() {
-        server.expect(requestTo("http://product:8080/product/7")).andExpect(method(DELETE)).andRespond(withSuccess());
-        server.expect(requestTo("http://recommendation:8080/recommendation?productId=7"))
-                .andExpect(method(DELETE)).andRespond(withSuccess());
-        server.expect(requestTo("http://review:8080/review?productId=7"))
-                .andExpect(method(DELETE)).andRespond(withSuccess());
-        integration.deleteProduct(7);
-        integration.deleteRecommendations(7);
-        integration.deleteReviews(7);
-        server.verify();
+    void getTranslatesNotFound() {
+        response = ClientResponse.create(HttpStatus.NOT_FOUND)
+            .header("Content-Type", "application/json").body("{\"message\":\"missing\"}").build();
+        assertEquals("missing", assertThrows(NotFoundException.class,
+            () -> integration.getProduct(7).block()).getMessage());
     }
 
     @Test
-    void deleteTranslatesNotFound() {
-        server.expect(requestTo("http://product:8080/product/7"))
-                .andRespond(withStatus(HttpStatus.NOT_FOUND).contentType(MediaType.APPLICATION_JSON)
-                        .body("{\"message\":\"missing\"}"));
-        assertEquals("missing", assertThrows(NotFoundException.class, () -> integration.deleteProduct(7)).getMessage());
-        server.verify();
+    void unexpectedProductErrorIsNotConvertedToSuccess() {
+        response = ClientResponse.create(HttpStatus.BAD_REQUEST).body("invalid").build();
+        assertThrows(WebClientResponseException.class, () -> integration.getProduct(7).block());
     }
 
     @Test
-    void unexpectedClientErrorIsNotConvertedToSuccess() {
-        server.expect(requestTo("http://review:8080/review?productId=7"))
-                .andRespond(withStatus(HttpStatus.BAD_REQUEST).body("invalid"));
-        assertThrows(HttpClientErrorException.class, () -> integration.deleteReviews(7));
-        server.verify();
+    void rejectedPublicationIsNotConvertedToSuccess() {
+        when(bridge.send(anyString(), any(Object.class))).thenReturn(false);
+        assertThrows(IllegalStateException.class, () -> integration.createProduct(new Product(7,"p",2,null)).block());
+        assertThrows(IllegalStateException.class, () -> integration.deleteProduct(7).block());
     }
 }

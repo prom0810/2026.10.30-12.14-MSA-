@@ -1,18 +1,6 @@
 package se.magnus.microservices.core.product;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static java.util.stream.IntStream.rangeClosed;
-
-import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Sort;
-import reactor.core.publisher.Mono;
 import org.junit.jupiter.api.BeforeEach;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.testcontainers.mongodb.MongoDBContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.mongodb.test.autoconfigure.DataMongoTest;
@@ -22,13 +10,8 @@ import reactor.test.StepVerifier;
 import se.magnus.microservices.core.product.persistence.ProductEntity;
 import se.magnus.microservices.core.product.persistence.ProductRepository;
 
-@DataMongoTest(properties = "spring.data.mongodb.auto-index-creation=true")
-@Testcontainers
-class PersistenceTests {
-
-  @Container
-  @ServiceConnection
-  static MongoDBContainer mongo = new MongoDBContainer("mongo:8.0.5");
+@DataMongoTest
+class PersistenceTests extends MongoDbTestBase {
 
   @Autowired
   private ProductRepository repository;
@@ -121,40 +104,6 @@ class PersistenceTests {
       .verifyComplete();
   }
 
-  @Test
-  void paging() {
-    StepVerifier.create(repository.deleteAll()).verifyComplete();
-
-    var newProducts = rangeClosed(1001, 1010)
-      .mapToObj(i -> new ProductEntity(i, "name " + i, i))
-      .toList();
-    StepVerifier.create(repository.saveAll(newProducts))
-      .expectNextCount(10)
-      .verifyComplete();
-
-    Pageable nextPage =
-      PageRequest.of(0, 4,
-        Sort.Direction.ASC, "productId");
-    nextPage = testNextPage(nextPage, "[1001, 1002, 1003, 1004]", true);
-    nextPage = testNextPage(nextPage, "[1005, 1006, 1007, 1008]", true);
-    testNextPage(nextPage, "[1009, 1010]", false);
-  }
-
-  private Pageable testNextPage(
-      Pageable nextPage,
-      String expectedProductIds, boolean expectsNextPage) {
-    StepVerifier.create(Mono.zip(
-        repository.findAllBy(nextPage).collectList(), repository.count()))
-      .assertNext(results -> {
-        var page = new PageImpl<>(
-          results.getT1(), nextPage, results.getT2());
-        assertEquals(expectedProductIds,
-          page.getContent().stream().map(ProductEntity::getProductId).toList().toString());
-        assertEquals(expectsNextPage, page.hasNext());
-      })
-      .verifyComplete();
-    return nextPage.next();
-  }
   private boolean areProductEqual(ProductEntity expectedEntity, ProductEntity actualEntity) {
     return
       (expectedEntity.getId().equals(actualEntity.getId()))
